@@ -1,0 +1,94 @@
+import socket
+from configparser import ConfigParser
+from pip._vendor.distlib.compat import raw_input
+from Protocol import *
+import threading
+import time
+
+
+def sendHeartbeat():
+    global sent, data, server_address, accepted
+    # keep sending heartbeat when accepted
+    while accepted:
+        try:
+            sent = sock.sendto(heartbeat().encode(), server_address)
+            time.sleep(3.0)
+        except OSError:
+            print('Caught OSError')
+
+
+def spamFunction(times):
+    global sent, data, server_address, accepted, count, server
+    # keep sending a message
+    while accepted:
+        time.sleep(1)
+        for x in range(times):
+            try:
+                sent = sock.sendto(clientMessage(count, 'hej server').encode(), server_address)
+                print('\nClient: {}'.format(clientMessage(count, 'hej server')))
+                count = count + 1
+                data, server = sock.recvfrom(4096)
+                count = count + 1
+            except OSError:
+                print('Caught OSError')
+
+
+def regularChatFunction():
+    global sent, data, server_address, accepted, count, server
+    while accepted:
+        # sets a timer that sends a heartbeat every 3 sec if keepAlive is true
+        st = raw_input("")
+        print('\nClient: {}'.format(clientMessage(count, st)))
+        sent = sock.sendto(clientMessage(count, st).encode(), server_address)
+        count = count + 1
+        # Receive response
+        data, server = sock.recvfrom(4096)
+        # if the client receives a connection reset from the server it sends an acknowledgement back
+        if data.decode() == serverResetCon():
+            sent = sock.sendto(ackReset().encode(), server_address)
+            accepted = False
+            sock.close()
+        count = count + 1
+        print('\nServer: {}'.format(data.decode()))
+
+
+config = ConfigParser()
+# Read values from config file
+config.read('opt.conf.py')
+# converting between String and boolean
+if config.get('settings', 'keepAlive') == 'True':
+    keepAlive = True
+elif config.get('settings', 'keepAlive') == 'False':
+    keepAlive = False
+
+maxPackages = int(config.get('settings', 'maxPackages'))
+
+# Create a UDP socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+# count message number
+count = 0
+server_address = ('127.0.0.1', 20000)
+# message in three way handshake
+message = request(server_address[0]).encode()
+
+accepted = False
+# Send data
+print('\nClient {}'.format(message.decode()))
+sent = sock.sendto(message, server_address)
+
+# Receive response
+data, server = sock.recvfrom(4096)
+print('\nServer: {}'.format(data.decode()))
+# If the client receives an accept from the server it sends an accept back and set accepted to true
+if data.decode() == serverAccept(server_address[0]):
+    print('\nClient {}'.format(clientAccept()))
+    sent = sock.sendto(clientAccept().encode(), server_address)
+    accepted = True
+else:
+    sock.close()
+
+if keepAlive is True & accepted is True:
+    t = threading.Timer(3.0, sendHeartbeat)
+    t.start()
+
+regularChatFunction()
