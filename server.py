@@ -17,7 +17,7 @@ def resetCon(sock1: socket):
     finally:
         sock1.close()
 
-    
+
 # Function that a supposed to count packages pr. second but it doesnt work yet
 def countPackagesPrSec(count: int):
     serverIsNotBeingSpammed: bool = False
@@ -35,11 +35,10 @@ def countPackagesPrSec(count: int):
 
 def handshake(sock1: socket):
     untilRequestFromClient(sock1)
-    address = untilAccept(sock1)
-    return address, True
+    return untilAccept(sock1)
 
 
-def untilRequestFromClient(sock1):
+def untilRequestFromClient(sock1: socket):
     firstPartOfHandshake: bool = False
     while firstPartOfHandshake is False:
         # keep receiving incoming message until three way handshake
@@ -50,7 +49,7 @@ def untilRequestFromClient(sock1):
             firstPartOfHandshake = True
 
 
-def untilAccept(sock1):
+def untilAccept(sock1: socket):
     secondPartOfHandshake: bool = False
     while secondPartOfHandshake is False:
         data, address = sock1.recvfrom(4096)
@@ -59,7 +58,7 @@ def untilAccept(sock1):
             secondPartOfHandshake = True
             timeOfEvent = datetime.now()
             logging.info(str(timeOfEvent) + ': Handshake completed with client with IP address' + str(address))
-    return address
+    return address, secondPartOfHandshake
 
 
 def receiveMessages(sock1: socket):
@@ -89,14 +88,14 @@ def receiveMessages(sock1: socket):
             else:
                 resetCon(sock1)
 
-        # if the client msg count is wrong breakout of the while loop
-        if isMsg is True & clientCount != count:
-            print('Count was: ' + str(count) + ' ClientCount was: ' + str(clientCount))
-            clientAccepted = False
-
         # if the recevied is a msg send a servermessage and increment the count by 2. One for msg recieved and one for
         # msg send
         if isMsg:
+            if clientCount != count:
+                print('Count was: ' + str(count) + ' ClientCount was: ' + str(clientCount))
+                clientAccepted = False
+                resetCon(sock1)
+                break
             print('\nClient: {} '.format(data.decode()))
             count = count + 1
             sent = sock1.sendto(serverMessage(count).encode(), address)
@@ -124,5 +123,5 @@ sock = createSocket()
 clientAddress, clientAccepted = handshake(sock)
 thread = threading.Thread(target=countPackagesPrSec, args=(count,))
 receiveMessages(sock)
-#receiveMessages(sock)
+# receiveMessages(sock)
 resetCon(sock)
