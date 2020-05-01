@@ -91,4 +91,4 @@ if keepAlive is True & accepted is True:
     t = threading.Timer(3.0, sendHeartbeat)
     t.start()
 
-regularChatFunction()
+spamFunction(maxPackages)
